@@ -134,12 +134,13 @@ export function generateRecipeDraft(
   url: string,
   platform: Platform,
   metadata: OEmbedResponse = {},
-  evidenceText = ""
+  evidenceText = "",
+  parsedOverride?: ParsedEvidence
 ): RecipeDraft {
   const sourceTitle = cleanTitle(metadata.title) || fallbackTitle(platform);
   const creator = metadata.author_name || "Original creator";
   const embedAllowed = platform === "youtube" || platform === "tiktok";
-  const parsed = parseEvidence(evidenceText, sourceTitle);
+  const parsed = parsedOverride || parseEvidence(evidenceText, sourceTitle);
   const hasEnoughEvidence = parsed.ingredients.length > 0 || parsed.steps.length > 0;
 
   const draft: RecipeDraft = {
@@ -166,7 +167,190 @@ export async function decodeVideoUrl(input: DecodeInput): Promise<RecipeDraft> {
   const url = normalizeUrl(input.url || "");
   const platform = detectPlatform(url);
   const metadata = await fetchSourceMetadata(url, platform);
-  return generateRecipeDraft(url, platform, metadata, input.evidenceText || "");
+  const evidenceText = input.evidenceText || "";
+  const sourceTitle = cleanTitle(metadata.title) || fallbackTitle(platform);
+  const aiParsed = await extractEvidenceWithOpenAI(evidenceText, sourceTitle, platform);
+
+  return generateRecipeDraft(url, platform, metadata, evidenceText, aiParsed || undefined);
+}
+
+async function extractEvidenceWithOpenAI(
+  evidenceText: string,
+  sourceTitle: string,
+  platform: Platform
+): Promise<ParsedEvidence | null> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey || evidenceText.trim().length < 20) return null;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20000);
+
+  try {
+    const response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+        input: [
+          {
+            role: "system",
+            content:
+              "Extract a cooking recipe only from provided evidence. Do not invent ingredients, quantities, temperatures, times, equipment, servings, or steps. If a value is missing, write Missing. Return JSON matching schema."
+          },
+          {
+            role: "user",
+            content: `Source title: ${sourceTitle}\nPlatform: ${platformLabel(platform)}\n\nEvidence:\n${evidenceText}`
+          }
+        ],
+        text: {
+          format: {
+            type: "json_schema",
+            name: "taystfuhl_recipe_extraction",
+            strict: true,
+            schema: recipeExtractionSchema
+          }
+        }
+      })
+    });
+
+    if (!response.ok) return null;
+    const data = await response.json();
+    const outputText = extractOutputText(data);
+    if (!outputText) return null;
+    const parsed = JSON.parse(outputText) as ParsedEvidence;
+    return normalizeAiParsedEvidence(parsed, sourceTitle);
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+const recipeExtractionSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: [
+    "title",
+    "ingredients",
+    "steps",
+    "equipment",
+    "servings",
+    "prepTime",
+    "cookTime",
+    "totalTime",
+    "tags",
+    "evidenceUsed"
+  ],
+  properties: {
+    title: { type: "string" },
+    ingredients: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["item", "amount", "confidence", "evidence"],
+        properties: {
+          item: { type: "string" },
+          amount: { type: "string" },
+          confidence: {
+            type: "string",
+            enum: ["Seen in video", "Likely", "Estimated", "Missing", "Needs review"]
+          },
+          evidence: { type: "string" }
+        }
+      }
+    },
+    steps: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["text", "confidence", "evidence"],
+        properties: {
+          text: { type: "string" },
+          confidence: {
+            type: "string",
+            enum: ["Seen in video", "Likely", "Estimated", "Missing", "Needs review"]
+          },
+          evidence: { type: "string" }
+        }
+      }
+    },
+    equipment: { type: "array", items: { type: "string" } },
+    servings: { type: "string" },
+    prepTime: { type: "string" },
+    cookTime: { type: "string" },
+    totalTime: { type: "string" },
+    tags: { type: "array", items: { type: "string" } },
+    evidenceUsed: { type: "array", items: { type: "string" } }
+  }
+} as const;
+
+function extractOutputText(data: unknown): string {
+  if (!data || typeof data !== "object") return "";
+
+  const maybeOutputText = (data as { output_text?: unknown }).output_text;
+  if (typeof maybeOutputText === "string") return maybeOutputText;
+
+  const output = (data as { output?: Array<{ content?: Array<Record<string, unknown>> }> }).output;
+  if (!Array.isArray(output)) return "";
+
+  return output
+    .flatMap((item) => item.content || [])
+    .map((content) => {
+      if (typeof content.text === "string") return content.text;
+      if (typeof content.output_text === "string") return content.output_text;
+      return "";
+    })
+    .join("")
+    .trim();
+}
+
+function normalizeAiParsedEvidence(parsed: ParsedEvidence, sourceTitle: string): ParsedEvidence {
+  const cleanIngredients = Array.isArray(parsed.ingredients)
+    ? parsed.ingredients
+        .filter((ingredient) => ingredient.item && ingredient.amount)
+        .map((ingredient) => ({
+          item: titleCaseIngredient(String(ingredient.item)),
+          amount: String(ingredient.amount),
+          confidence: normalizeConfidence(ingredient.confidence),
+          evidence: String(ingredient.evidence || "Provided evidence")
+        }))
+    : [];
+
+  const cleanSteps = Array.isArray(parsed.steps)
+    ? parsed.steps
+        .filter((step) => step.text)
+        .map((step) => ({
+          text: normalizeInstruction(String(step.text)),
+          confidence: normalizeConfidence(step.confidence),
+          evidence: String(step.evidence || "Provided evidence")
+        }))
+    : [];
+
+  return {
+    title: recipeTitleFromSource(String(parsed.title || sourceTitle), "Evidence-Backed Recipe Draft"),
+    ingredients: dedupeIngredients(cleanIngredients),
+    steps: dedupeSteps(cleanSteps),
+    equipment: Array.isArray(parsed.equipment) ? parsed.equipment.map(String).filter(Boolean).slice(0, 10) : [],
+    servings: String(parsed.servings || "Missing"),
+    prepTime: String(parsed.prepTime || "Missing"),
+    cookTime: String(parsed.cookTime || "Missing"),
+    totalTime: String(parsed.totalTime || "Missing"),
+    tags: Array.isArray(parsed.tags) ? parsed.tags.map(String).filter(Boolean).slice(0, 10) : ["evidence-backed"],
+    evidenceUsed: Array.isArray(parsed.evidenceUsed)
+      ? parsed.evidenceUsed.map(String).filter(Boolean).slice(0, 20)
+      : []
+  };
+}
+
+function normalizeConfidence(confidence: ConfidenceLabel | string): ConfidenceLabel {
+  const allowed: ConfidenceLabel[] = ["Seen in video", "Likely", "Estimated", "Missing", "Needs review"];
+  return allowed.includes(confidence as ConfidenceLabel) ? (confidence as ConfidenceLabel) : "Needs review";
 }
 
 function parseEvidence(rawEvidence: string, sourceTitle: string): ParsedEvidence {
