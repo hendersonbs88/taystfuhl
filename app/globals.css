@@ -180,6 +180,28 @@ button {
   background: var(--tomato);
 }
 
+.primary-link,
+.secondary-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.primary-link {
+  color: white;
+  background: var(--tomato);
+}
+
+.secondary-link {
+  color: var(--ink);
+  background: #f4e0bd;
+}
+
 .primary-button:disabled {
   cursor: progress;
   opacity: 0.68;
@@ -438,6 +460,82 @@ footer {
   font-size: 13px;
 }
 
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(29, 25, 20, 0.48);
+}
+
+.ingredient-modal {
+  width: min(560px, 100%);
+  max-height: min(720px, calc(100vh - 36px));
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--cream);
+  box-shadow: var(--shadow);
+}
+
+.modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 20px 20px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.modal-header h2 {
+  margin: 0;
+}
+
+.icon-button {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 999px;
+  color: var(--ink);
+  background: #f4e0bd;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.ingredient-modal-list {
+  display: grid;
+  gap: 10px;
+  padding: 18px 20px;
+}
+
+.ingredient-modal-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px;
+  border: 1px solid #efdcbc;
+  border-radius: 8px;
+  background: #fff9ed;
+}
+
+.ingredient-modal-row span:last-child {
+  flex: 0 0 auto;
+  color: var(--herb);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 0 20px 20px;
+}
+
 @media (max-width: 860px) {
   .hero,
   .result-layout,
@@ -478,6 +576,17 @@ footer {
 
   .primary-button {
     min-height: 52px;
+  }
+
+  .modal-actions,
+  .ingredient-modal-row {
+    flex-direction: column;
+  }
+
+  .primary-link,
+  .secondary-link,
+  .modal-actions .secondary-button {
+    width: 100%;
   }
 
   .stat-grid {
