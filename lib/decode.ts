@@ -111,9 +111,13 @@ export async function fetchSourceMetadata(url: string, platform: Platform): Prom
 
   if (!endpoint) return {};
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 3500);
+
   try {
     const response = await fetch(endpoint, {
       headers: { "User-Agent": "TaystfuhlRecipeDecoder/0.2" },
+      signal: controller.signal,
       next: { revalidate: 3600 }
     });
 
@@ -121,6 +125,8 @@ export async function fetchSourceMetadata(url: string, platform: Platform): Prom
     return (await response.json()) as OEmbedResponse;
   } catch {
     return {};
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
