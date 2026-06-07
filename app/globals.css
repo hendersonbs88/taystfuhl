@@ -148,6 +148,24 @@ button {
   box-shadow: 0 0 0 3px rgba(214, 64, 39, 0.14);
 }
 
+.evidence-input {
+  width: 100%;
+  margin-top: 10px;
+  padding: 14px 15px;
+  border: 1px solid #dcc39d;
+  border-radius: 6px;
+  color: var(--ink);
+  background: white;
+  outline: none;
+  resize: vertical;
+  line-height: 1.45;
+}
+
+.evidence-input:focus {
+  border-color: var(--tomato);
+  box-shadow: 0 0 0 3px rgba(214, 64, 39, 0.14);
+}
+
 .primary-button,
 .secondary-button,
 .sample-button {

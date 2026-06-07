@@ -5,21 +5,49 @@ import type { RecipeDraft } from "@/lib/decode";
 
 const samples = [
   {
-    label: "YouTube pasta",
-    url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+    label: "Evidence-rich pasta",
+    url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    evidence: `Serves 4
+2 tbsp olive oil
+4 cloves garlic, minced
+1 lb chicken breast, sliced
+1 tsp kosher salt
+1/2 tsp black pepper
+8 oz penne pasta
+1 cup heavy cream
+1/2 cup grated parmesan
+Preheat skillet over medium-high heat
+Cook chicken 6 minutes until browned
+Boil pasta 10 minutes
+Simmer cream sauce 3 minutes
+Toss pasta with sauce and parmesan`
   },
   {
-    label: "TikTok chicken",
-    url: "https://www.tiktok.com/@creator/video/7320000000000000000"
+    label: "URL-only test",
+    url: "https://www.tiktok.com/@creator/video/7320000000000000000",
+    evidence: ""
   },
   {
-    label: "Instagram dessert",
-    url: "https://www.instagram.com/reel/C0ffeeCake/"
+    label: "Dessert notes",
+    url: "https://www.instagram.com/reel/C0ffeeCake/",
+    evidence: `Makes 9 servings
+1/2 cup melted butter
+1 cup brown sugar
+1 egg
+1 tsp vanilla
+1 cup flour
+1/2 tsp baking powder
+1 cup chocolate chips
+Mix butter and sugar
+Whisk in egg and vanilla
+Fold in flour and chocolate chips
+Bake at 350 degrees for 22 minutes`
   }
 ];
 
 export default function Home() {
   const [url, setUrl] = useState("");
+  const [evidenceText, setEvidenceText] = useState("");
   const [draft, setDraft] = useState<RecipeDraft | null>(null);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -33,7 +61,7 @@ export default function Home() {
       const response = await fetch("/api/decode", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url })
+        body: JSON.stringify({ url, evidenceText })
       });
       const payload = await response.json();
 
@@ -50,8 +78,9 @@ export default function Home() {
     }
   }
 
-  function useSample(sampleUrl: string) {
-    setUrl(sampleUrl);
+  function useSample(sample: (typeof samples)[number]) {
+    setUrl(sample.url);
+    setEvidenceText(sample.evidence);
     setDraft(null);
     setError("");
   }
@@ -71,8 +100,8 @@ export default function Home() {
           <p className="eyebrow">Viral recipe decoder</p>
           <h1>Paste a cooking video. Get the real recipe.</h1>
           <p className="hero-copy">
-            Taystfuhl turns fast, messy cooking videos into clear ingredients, steps,
-            times, and servings you can actually cook from.
+            Taystfuhl turns messy cooking-video evidence into clear ingredients, steps,
+            times, and servings. If the video evidence is missing, it refuses to fake it.
           </p>
 
           <form className="decoder" onSubmit={decode}>
@@ -88,9 +117,17 @@ export default function Home() {
                 {isLoading ? "Decoding..." : "Decode a video"}
               </button>
             </div>
+            <textarea
+              className="evidence-input"
+              value={evidenceText}
+              onChange={(event) => setEvidenceText(event.target.value)}
+              placeholder="Optional for this demo: paste captions, creator description, or frame notes. Production workers will auto-fill this from transcripts and key frames."
+              aria-label="Video transcript or frame notes"
+              rows={6}
+            />
             <p className="trust-line">
-              We estimate missing amounts, flag uncertainty, attribute the creator, and show
-              what came from the source. Verify before cooking.
+              Evidence-first extraction: no generic filler, no invented cook times. URL-only
+              submissions will ask for transcript or frame evidence.
             </p>
             <div className="sample-row" aria-label="Sample URLs">
               {samples.map((sample) => (
@@ -98,7 +135,7 @@ export default function Home() {
                   className="sample-button"
                   key={sample.label}
                   type="button"
-                  onClick={() => useSample(sample.url)}
+                  onClick={() => useSample(sample)}
                 >
                   {sample.label}
                 </button>
@@ -153,8 +190,8 @@ function EmptyState() {
         <p className="kicker">Ready when you are</p>
         <h2 className="recipe-title">Decode your first recipe</h2>
         <p>
-          Use a sample above or paste a public cooking-video URL. The MVP produces a
-          structured recipe draft so you can test the flow before live AI extraction is wired in.
+          Use an evidence-rich sample to see specific extraction. Use URL-only to confirm
+          Taystfuhl now refuses to invent ingredients from metadata.
         </p>
       </div>
     </div>
@@ -186,7 +223,7 @@ function RecipeResult({ draft }: { draft: RecipeDraft }) {
   async function copyIngredients() {
     const ingredients = draft.recipe.ingredients
       .map((ingredient) => `${ingredient.amount} ${ingredient.item}`)
-      .join("\n");
+      .join("\n") || "No ingredients extracted yet.";
     await navigator.clipboard.writeText(ingredients);
   }
 
@@ -207,6 +244,7 @@ function RecipeResult({ draft }: { draft: RecipeDraft }) {
         </div>
         <div className="badge-row">
           <span className="badge confidence">{draft.recipe.confidence}</span>
+          <span className="badge">{draft.status === "draft_ready" ? "evidence-backed" : "needs evidence"}</span>
           <span className="badge">{draft.source.platform}</span>
         </div>
       </aside>
@@ -214,7 +252,7 @@ function RecipeResult({ draft }: { draft: RecipeDraft }) {
       <article className="panel panel-pad">
         <div className="recipe-header">
           <div>
-            <p className="kicker">Decoded recipe draft</p>
+            <p className="kicker">{draft.status === "draft_ready" ? "Decoded recipe draft" : "Evidence needed"}</p>
             <h2 className="recipe-title">{draft.recipe.title}</h2>
             <p>{draft.recipe.summary}</p>
           </div>
@@ -245,27 +283,27 @@ function RecipeResult({ draft }: { draft: RecipeDraft }) {
           <section>
             <h3>Ingredients</h3>
             <ul className="list">
-              {draft.recipe.ingredients.map((ingredient) => (
+              {draft.recipe.ingredients.length ? draft.recipe.ingredients.map((ingredient) => (
                 <li key={`${ingredient.amount}-${ingredient.item}`}>
                   <strong>{ingredient.amount}</strong> {ingredient.item}
                   <br />
                   <span className="label">{ingredient.confidence}</span>
                 </li>
-              ))}
+              )) : <li>No ingredients extracted. Add captions, creator description, or frame notes.</li>}
             </ul>
 
             <h3>Equipment</h3>
             <ul className="list">
-              {draft.recipe.equipment.map((item) => (
+              {draft.recipe.equipment.length ? draft.recipe.equipment.map((item) => (
                 <li key={item}>{item}</li>
-              ))}
+              )) : <li>No equipment confirmed from evidence.</li>}
             </ul>
           </section>
 
           <section>
             <h3>Method</h3>
             <ol className="step-list">
-              {draft.recipe.steps.map((step) => (
+              {draft.recipe.steps.length ? draft.recipe.steps.map((step) => (
                 <li key={step.text}>
                   <span>
                     {step.text}
@@ -273,8 +311,17 @@ function RecipeResult({ draft }: { draft: RecipeDraft }) {
                     <span className="label">{step.confidence}</span>
                   </span>
                 </li>
-              ))}
+              )) : <li><span>No cooking steps extracted. Add transcript or frame notes.</span></li>}
             </ol>
+
+            <div className="notes">
+              <strong>Evidence used:</strong>
+              <ul>
+                {draft.recipe.evidenceUsed.length ? draft.recipe.evidenceUsed.map((item) => (
+                  <li key={item}>{item}</li>
+                )) : <li>No recipe evidence supplied.</li>}
+              </ul>
+            </div>
 
             <div className="notes">
               <strong>Safety note:</strong> {draft.recipe.safety}

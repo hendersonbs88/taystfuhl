@@ -2,18 +2,23 @@ export type Platform = "youtube" | "tiktok" | "instagram" | "generic";
 
 export type ConfidenceLabel = "Seen in video" | "Likely" | "Estimated" | "Missing" | "Needs review";
 
+export type ExtractionStatus = "needs_evidence" | "draft_ready";
+
 export type RecipeIngredient = {
   item: string;
   amount: string;
   confidence: ConfidenceLabel;
+  evidence: string;
 };
 
 export type RecipeStep = {
   text: string;
   confidence: ConfidenceLabel;
+  evidence: string;
 };
 
 export type RecipeDraft = {
+  status: ExtractionStatus;
   source: {
     url: string;
     platform: Platform;
@@ -35,9 +40,15 @@ export type RecipeDraft = {
     steps: RecipeStep[];
     tags: string[];
     notes: string[];
+    evidenceUsed: string[];
     safety: string;
   };
   downloadMarkdown: string;
+};
+
+type DecodeInput = {
+  url: string;
+  evidenceText?: string;
 };
 
 type OEmbedResponse = {
@@ -46,107 +57,24 @@ type OEmbedResponse = {
   provider_name?: string;
 };
 
-type RecipeTemplate = {
-  match: string[];
+type ParsedEvidence = {
   title: string;
-  summary: string;
-  tags: string[];
   ingredients: RecipeIngredient[];
-  equipment: string[];
   steps: RecipeStep[];
+  equipment: string[];
+  servings: string;
+  prepTime: string;
   cookTime: string;
+  totalTime: string;
+  tags: string[];
+  evidenceUsed: string[];
 };
 
-const templates: RecipeTemplate[] = [
-  {
-    match: ["pasta", "spaghetti", "alfredo", "noodle"],
-    title: "Creamy Garlic Pasta",
-    summary: "A weeknight pasta draft built from common viral creamy pasta cues.",
-    tags: ["pasta", "dinner", "comfort food", "viral"],
-    cookTime: "18 min",
-    equipment: ["Large pot", "Skillet", "Tongs", "Measuring cup"],
-    ingredients: [
-      { item: "Pasta", amount: "8 oz", confidence: "Likely" },
-      { item: "Garlic", amount: "3 cloves, minced", confidence: "Likely" },
-      { item: "Butter or olive oil", amount: "2 tbsp", confidence: "Estimated" },
-      { item: "Cream or milk", amount: "1 cup", confidence: "Estimated" },
-      { item: "Parmesan", amount: "1/2 cup", confidence: "Likely" },
-      { item: "Salt and black pepper", amount: "to taste", confidence: "Likely" }
-    ],
-    steps: [
-      { text: "Boil pasta in salted water until just tender. Reserve 1/2 cup pasta water.", confidence: "Likely" },
-      { text: "Saute garlic in butter or oil until fragrant, about 30 seconds.", confidence: "Estimated" },
-      { text: "Add cream and simmer until slightly thickened.", confidence: "Estimated" },
-      { text: "Toss in pasta, parmesan, and splashes of pasta water until glossy.", confidence: "Likely" },
-      { text: "Season, plate, and serve immediately.", confidence: "Likely" }
-    ]
-  },
-  {
-    match: ["chicken", "tender", "breast", "thigh"],
-    title: "Savory Skillet Chicken",
-    summary: "A cook-ready chicken draft with safety-first temperature guidance.",
-    tags: ["chicken", "dinner", "high protein", "skillet"],
-    cookTime: "22 min",
-    equipment: ["Skillet", "Tongs", "Instant-read thermometer", "Cutting board"],
-    ingredients: [
-      { item: "Chicken", amount: "1 lb", confidence: "Likely" },
-      { item: "Olive oil", amount: "1 tbsp", confidence: "Estimated" },
-      { item: "Garlic powder", amount: "1 tsp", confidence: "Estimated" },
-      { item: "Paprika", amount: "1 tsp", confidence: "Estimated" },
-      { item: "Salt and pepper", amount: "to taste", confidence: "Likely" },
-      { item: "Lemon juice or sauce", amount: "1 tbsp", confidence: "Missing" }
-    ],
-    steps: [
-      { text: "Pat chicken dry and season on both sides.", confidence: "Likely" },
-      { text: "Heat oil in a skillet over medium-high heat.", confidence: "Likely" },
-      { text: "Sear chicken until browned, then reduce heat and cook through.", confidence: "Estimated" },
-      { text: "Rest 5 minutes before slicing.", confidence: "Likely" },
-      { text: "Verify internal temperature reaches 165 F.", confidence: "Seen in video" }
-    ]
-  },
-  {
-    match: ["air fryer", "air-fryer", "crispy"],
-    title: "Crispy Air Fryer Bites",
-    summary: "A crispy air fryer recipe draft for bite-sized viral snacks or proteins.",
-    tags: ["air fryer", "crispy", "quick", "viral"],
-    cookTime: "14 min",
-    equipment: ["Air fryer", "Mixing bowl", "Tongs"],
-    ingredients: [
-      { item: "Main ingredient from video", amount: "1 lb or 4 cups", confidence: "Needs review" },
-      { item: "Oil spray", amount: "light coating", confidence: "Likely" },
-      { item: "Seasoning blend", amount: "2 tsp", confidence: "Estimated" },
-      { item: "Salt", amount: "1/2 tsp", confidence: "Estimated" }
-    ],
-    steps: [
-      { text: "Cut ingredients into even pieces so they cook at the same speed.", confidence: "Likely" },
-      { text: "Toss with seasoning and a light oil coating.", confidence: "Likely" },
-      { text: "Air fry at 390 F, shaking halfway.", confidence: "Estimated" },
-      { text: "Cook until browned and crisp at the edges.", confidence: "Likely" }
-    ]
-  },
-  {
-    match: ["cookie", "cake", "brownie", "dessert", "chocolate"],
-    title: "Viral Dessert Bake",
-    summary: "A dessert draft that preserves uncertainty where short videos skip measurements.",
-    tags: ["dessert", "baking", "sweet", "viral"],
-    cookTime: "25 min",
-    equipment: ["Mixing bowl", "Spatula", "Baking pan", "Oven"],
-    ingredients: [
-      { item: "Flour", amount: "1 cup", confidence: "Estimated" },
-      { item: "Sugar", amount: "1/2 cup", confidence: "Estimated" },
-      { item: "Butter", amount: "1/2 cup", confidence: "Estimated" },
-      { item: "Egg", amount: "1 large", confidence: "Likely" },
-      { item: "Chocolate or featured mix-in", amount: "1 cup", confidence: "Likely" }
-    ],
-    steps: [
-      { text: "Preheat oven to 350 F.", confidence: "Estimated" },
-      { text: "Mix wet ingredients until smooth.", confidence: "Likely" },
-      { text: "Fold in dry ingredients and featured mix-ins.", confidence: "Likely" },
-      { text: "Bake until edges set and center is no longer wet.", confidence: "Estimated" },
-      { text: "Cool before slicing or serving.", confidence: "Likely" }
-    ]
-  }
-];
+const amountPattern =
+  /((?:\d+\/\d+|\d+(?:\.\d+)?)(?:\s*-\s*(?:\d+\/\d+|\d+(?:\.\d+)?))?\s*(?:cups?|cup|tbsp|tablespoons?|tsp|teaspoons?|oz|ounces?|lb|lbs|pounds?|g|grams?|kg|ml|l|cloves?|cans?|packages?|sticks?|pinch|pinches|slices?)|to taste|as needed)\s+(.+)/i;
+
+const timePattern = /(\d+)\s*(seconds?|secs?|minutes?|mins?|hours?|hrs?)/i;
+const temperaturePattern = /(\d{3,4})\s*(?:degrees?|deg|f|c|fahrenheit|celsius)/i;
 
 export function detectPlatform(rawUrl: string): Platform {
   const host = new URL(rawUrl).hostname.replace(/^www\./, "").toLowerCase();
@@ -185,7 +113,7 @@ export async function fetchSourceMetadata(url: string, platform: Platform): Prom
 
   try {
     const response = await fetch(endpoint, {
-      headers: { "User-Agent": "TaystfuhlRecipeDecoder/0.1" },
+      headers: { "User-Agent": "TaystfuhlRecipeDecoder/0.2" },
       next: { revalidate: 3600 }
     });
 
@@ -196,22 +124,20 @@ export async function fetchSourceMetadata(url: string, platform: Platform): Prom
   }
 }
 
-export function generateRecipeDraft(url: string, platform: Platform, metadata: OEmbedResponse = {}): RecipeDraft {
+export function generateRecipeDraft(
+  url: string,
+  platform: Platform,
+  metadata: OEmbedResponse = {},
+  evidenceText = ""
+): RecipeDraft {
   const sourceTitle = cleanTitle(metadata.title) || fallbackTitle(platform);
   const creator = metadata.author_name || "Original creator";
-  const lower = `${sourceTitle} ${url}`.toLowerCase();
-  const template = templates.find((item) => item.match.some((match) => lower.includes(match))) || defaultTemplate();
-  const title = sourceTitle === fallbackTitle(platform) ? template.title : recipeTitleFromSource(sourceTitle, template.title);
   const embedAllowed = platform === "youtube" || platform === "tiktok";
-  const notes = [
-    "AI-style draft generated from public metadata in this MVP. Verify against the original video before cooking.",
-    "Amounts marked Estimated or Missing need human review.",
-    embedAllowed
-      ? "Taystfuhl should use the official embed or source link for this platform."
-      : "This platform starts as source-link-only until approved access is available."
-  ];
+  const parsed = parseEvidence(evidenceText, sourceTitle);
+  const hasEnoughEvidence = parsed.ingredients.length > 0 || parsed.steps.length > 0;
 
   const draft: RecipeDraft = {
+    status: hasEnoughEvidence ? "draft_ready" : "needs_evidence",
     source: {
       url,
       platform,
@@ -220,21 +146,9 @@ export function generateRecipeDraft(url: string, platform: Platform, metadata: O
       embedAllowed,
       attribution: `${creator} on ${platformLabel(platform)}`
     },
-    recipe: {
-      title,
-      summary: template.summary,
-      servings: "2-4 servings",
-      prepTime: "10 min",
-      cookTime: template.cookTime,
-      totalTime: addTimes("10 min", template.cookTime),
-      confidence: platform === "generic" || platform === "instagram" ? "Needs review" : "Estimated",
-      ingredients: template.ingredients,
-      equipment: template.equipment,
-      steps: template.steps,
-      tags: Array.from(new Set(["trending", platformLabel(platform).toLowerCase(), ...template.tags])),
-      notes,
-      safety: "Verify cook times, temperatures, allergens, and storage guidance. Poultry should reach 165 F."
-    },
+    recipe: hasEnoughEvidence
+      ? buildEvidenceRecipe(parsed, sourceTitle, platform)
+      : buildNeedsEvidenceRecipe(sourceTitle, platform, embedAllowed),
     downloadMarkdown: ""
   };
 
@@ -242,11 +156,185 @@ export function generateRecipeDraft(url: string, platform: Platform, metadata: O
   return draft;
 }
 
-export async function decodeVideoUrl(input: string): Promise<RecipeDraft> {
-  const url = normalizeUrl(input);
+export async function decodeVideoUrl(input: DecodeInput): Promise<RecipeDraft> {
+  const url = normalizeUrl(input.url || "");
   const platform = detectPlatform(url);
   const metadata = await fetchSourceMetadata(url, platform);
-  return generateRecipeDraft(url, platform, metadata);
+  return generateRecipeDraft(url, platform, metadata, input.evidenceText || "");
+}
+
+function parseEvidence(rawEvidence: string, sourceTitle: string): ParsedEvidence {
+  const lines = rawEvidence
+    .split(/\r?\n|[•;]/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const ingredients: RecipeIngredient[] = [];
+  const steps: RecipeStep[] = [];
+  const equipment = new Set<string>();
+  const tags = new Set<string>(["evidence-backed"]);
+  const evidenceUsed: string[] = [];
+  let servings = "Missing";
+  let prepTime = "Missing";
+  let cookTime = "Missing";
+
+  for (const line of lines) {
+    const normalized = line.replace(/^[-*]\s*/, "").trim();
+    const lower = normalized.toLowerCase();
+
+    const servingMatch = lower.match(/(?:serves|servings|makes)\s*:?\s*(\d+\s*(?:-\s*\d+)?)/i);
+    if (servingMatch) {
+      servings = `${servingMatch[1]} servings`;
+      evidenceUsed.push(normalized);
+      continue;
+    }
+
+    if (lower.includes("prep")) {
+      const time = normalized.match(timePattern);
+      if (time) {
+        prepTime = formatTime(time[1], time[2]);
+        evidenceUsed.push(normalized);
+        continue;
+      }
+    }
+
+    if (lower.includes("cook") || lower.includes("bake") || lower.includes("air fry") || lower.includes("simmer")) {
+      const time = normalized.match(timePattern);
+      if (time && cookTime === "Missing") cookTime = formatTime(time[1], time[2]);
+    }
+
+    const ingredient = parseIngredient(normalized);
+    if (ingredient && !isInstructionLine(lower)) {
+      ingredients.push(ingredient);
+      evidenceUsed.push(normalized);
+      addIngredientTags(tags, ingredient.item);
+      continue;
+    }
+
+    const step = parseStep(normalized);
+    if (step) {
+      steps.push(step);
+      evidenceUsed.push(normalized);
+      inferEquipment(equipment, lower);
+      addStepTags(tags, lower);
+      continue;
+    }
+
+    inferEquipment(equipment, lower);
+  }
+
+  return {
+    title: inferTitle(sourceTitle, ingredients, tags),
+    ingredients: dedupeIngredients(ingredients),
+    steps: dedupeSteps(steps),
+    equipment: Array.from(equipment).slice(0, 8),
+    servings,
+    prepTime,
+    cookTime,
+    totalTime: combineTimes(prepTime, cookTime),
+    tags: Array.from(tags).slice(0, 8),
+    evidenceUsed: evidenceUsed.slice(0, 16)
+  };
+}
+
+function parseIngredient(line: string): RecipeIngredient | null {
+  const withoutPrefix = line.replace(/^(add|use|ingredients?:|ingredient\s*-\s*)\s*/i, "").trim();
+  const match = withoutPrefix.match(amountPattern);
+  if (!match) return null;
+
+  const item = match[2]
+    .replace(/\s*(,|then|and cook|and bake|and mix).*$/i, "")
+    .trim();
+  if (!item || item.length < 2) return null;
+
+  return {
+    amount: match[1].trim(),
+    item: titleCaseIngredient(item),
+    confidence: "Seen in video",
+    evidence: line
+  };
+}
+
+function parseStep(line: string): RecipeStep | null {
+  const lower = line.toLowerCase();
+  if (!isInstructionLine(lower)) return null;
+
+  const evidenceParts: string[] = [];
+  const time = line.match(timePattern);
+  const temp = line.match(temperaturePattern);
+  if (time) evidenceParts.push(formatTime(time[1], time[2]));
+  if (temp) evidenceParts.push(`${temp[1]} degrees`);
+
+  return {
+    text: normalizeInstruction(line),
+    confidence: "Seen in video",
+    evidence: evidenceParts.length ? `${line} (${evidenceParts.join(", ")})` : line
+  };
+}
+
+function isInstructionLine(lower: string): boolean {
+  return /\b(add|mix|stir|whisk|chop|slice|dice|cook|bake|air fry|fry|saute|sauté|simmer|boil|broil|roast|season|pour|fold|toss|serve|rest|marinate|heat|preheat|combine|blend)\b/.test(
+    lower
+  );
+}
+
+function buildEvidenceRecipe(parsed: ParsedEvidence, sourceTitle: string, platform: Platform): RecipeDraft["recipe"] {
+  const missing: string[] = [];
+  if (parsed.ingredients.length === 0) missing.push("Ingredient quantities were not visible or spoken clearly.");
+  if (parsed.steps.length === 0) missing.push("Cooking steps were not visible or spoken clearly.");
+  if (parsed.servings === "Missing") missing.push("Servings were not stated.");
+  if (parsed.cookTime === "Missing") missing.push("Cook time was not stated.");
+
+  return {
+    title: parsed.title,
+    summary: `Recipe draft extracted from the provided ${platformLabel(platform)} evidence, not from generic recipe templates.`,
+    servings: parsed.servings,
+    prepTime: parsed.prepTime,
+    cookTime: parsed.cookTime,
+    totalTime: parsed.totalTime,
+    confidence: missing.length ? "Needs review" : "Seen in video",
+    ingredients: parsed.ingredients,
+    equipment: parsed.equipment.length ? parsed.equipment : ["Equipment not confirmed from evidence"],
+    steps: parsed.steps,
+    tags: parsed.tags,
+    notes: [
+      "Only evidence-backed ingredients and steps are shown.",
+      "Taystfuhl does not invent missing quantities, temperatures, or cook times.",
+      ...missing
+    ],
+    evidenceUsed: parsed.evidenceUsed,
+    safety: "Verify cook times, temperatures, allergens, and storage guidance. Poultry should reach 165 F."
+  };
+}
+
+function buildNeedsEvidenceRecipe(
+  sourceTitle: string,
+  platform: Platform,
+  embedAllowed: boolean
+): RecipeDraft["recipe"] {
+  return {
+    title: recipeTitleFromSource(sourceTitle, "Recipe evidence needed"),
+    summary:
+      "Taystfuhl found the source, but this MVP cannot honestly extract quantities or steps from URL metadata alone.",
+    servings: "Missing",
+    prepTime: "Missing",
+    cookTime: "Missing",
+    totalTime: "Missing",
+    confidence: "Needs review",
+    ingredients: [],
+    equipment: [],
+    steps: [],
+    tags: ["needs evidence", platformLabel(platform).toLowerCase()],
+    notes: [
+      "Add transcript, captions, creator description, or frame notes to produce a specific recipe draft.",
+      "The next production worker should fetch transcript and key frames automatically before calling the extractor.",
+      embedAllowed
+        ? "This source can be embedded or linked, but the recipe still needs evidence."
+        : "This source should be treated as link-only until approved platform access exists."
+    ],
+    evidenceUsed: [],
+    safety: "No cooking guidance generated. Recipe evidence is required first."
+  };
 }
 
 function fallbackTitle(platform: Platform): string {
@@ -279,50 +367,128 @@ function recipeTitleFromSource(sourceTitle: string, fallback: string): string {
   return trimmed.length > 76 ? `${trimmed.slice(0, 73)}...` : trimmed;
 }
 
-function defaultTemplate(): RecipeTemplate {
-  return {
-    match: [],
-    title: "Decoded Viral Recipe",
-    summary: "A practical recipe draft inferred from a public cooking-video source.",
-    tags: ["viral", "quick", "decoded"],
-    cookTime: "20 min",
-    equipment: ["Cutting board", "Knife", "Skillet or baking dish", "Mixing bowl"],
-    ingredients: [
-      { item: "Main ingredient shown in video", amount: "1 lb or 4 cups", confidence: "Missing" },
-      { item: "Cooking oil", amount: "1-2 tbsp", confidence: "Estimated" },
-      { item: "Seasoning blend", amount: "2 tsp", confidence: "Estimated" },
-      { item: "Salt and pepper", amount: "to taste", confidence: "Likely" },
-      { item: "Sauce or garnish from video", amount: "as shown", confidence: "Needs review" }
-    ],
-    steps: [
-      { text: "Prep the main ingredient into even pieces.", confidence: "Likely" },
-      { text: "Season and coat with oil or sauce as shown in the source.", confidence: "Estimated" },
-      { text: "Cook over medium-high heat or in a hot oven until browned.", confidence: "Estimated" },
-      { text: "Taste, adjust seasoning, and finish with the garnish shown in the video.", confidence: "Likely" }
-    ]
-  };
+function inferTitle(sourceTitle: string, ingredients: RecipeIngredient[], tags: Set<string>): string {
+  const sourceBased = recipeTitleFromSource(sourceTitle, "");
+  if (sourceBased) return sourceBased;
+
+  const firstUseful = ingredients.find((ingredient) => !/salt|pepper|oil|water/i.test(ingredient.item));
+  if (firstUseful) return `${firstUseful.item} Recipe`;
+  if (tags.has("pasta")) return "Evidence-Backed Pasta";
+  if (tags.has("chicken")) return "Evidence-Backed Chicken";
+  return "Evidence-Backed Recipe Draft";
 }
 
-function addTimes(prepTime: string, cookTime: string): string {
-  const prep = Number.parseInt(prepTime, 10);
-  const cook = Number.parseInt(cookTime, 10);
-  if (Number.isNaN(prep) || Number.isNaN(cook)) return "Varies";
-  return `${prep + cook} min`;
+function titleCaseIngredient(item: string): string {
+  return item
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function normalizeInstruction(line: string): string {
+  const cleaned = line.replace(/^(step\s*\d+[:.)-]?|\d+[:.)-])\s*/i, "").trim();
+  return cleaned.endsWith(".") ? cleaned : `${cleaned}.`;
+}
+
+function formatTime(amount: string, unit: string): string {
+  const normalizedUnit = unit.toLowerCase();
+  if (normalizedUnit.startsWith("sec")) return `${amount} sec`;
+  if (normalizedUnit.startsWith("hour") || normalizedUnit.startsWith("hr")) return `${amount} hr`;
+  return `${amount} min`;
+}
+
+function combineTimes(prepTime: string, cookTime: string): string {
+  const prep = timeToMinutes(prepTime);
+  const cook = timeToMinutes(cookTime);
+  if (prep === null && cook === null) return "Missing";
+  return `${(prep || 0) + (cook || 0)} min`;
+}
+
+function timeToMinutes(value: string): number | null {
+  const match = value.match(/(\d+)\s*(sec|min|hr)/i);
+  if (!match) return null;
+  const amount = Number.parseInt(match[1], 10);
+  if (match[2].toLowerCase() === "sec") return Math.ceil(amount / 60);
+  if (match[2].toLowerCase() === "hr") return amount * 60;
+  return amount;
+}
+
+function inferEquipment(equipment: Set<string>, lower: string) {
+  const checks: Array<[RegExp, string]> = [
+    [/air fryer/, "Air fryer"],
+    [/skillet|pan\b/, "Skillet"],
+    [/oven|bake|roast|preheat/, "Oven"],
+    [/pot|boil/, "Pot"],
+    [/blender|blend/, "Blender"],
+    [/bowl|mix|whisk/, "Mixing bowl"],
+    [/knife|chop|dice|slice/, "Knife"],
+    [/thermometer|temperature/, "Thermometer"]
+  ];
+
+  for (const [pattern, label] of checks) {
+    if (pattern.test(lower)) equipment.add(label);
+  }
+}
+
+function addIngredientTags(tags: Set<string>, item: string) {
+  const lower = item.toLowerCase();
+  if (/chicken|turkey|beef|pork|salmon|shrimp|egg/.test(lower)) tags.add("protein");
+  if (/chicken/.test(lower)) tags.add("chicken");
+  if (/pasta|noodle|spaghetti/.test(lower)) tags.add("pasta");
+  if (/chocolate|sugar|flour|cake|cookie/.test(lower)) tags.add("dessert");
+}
+
+function addStepTags(tags: Set<string>, lower: string) {
+  if (/air fry/.test(lower)) tags.add("air fryer");
+  if (/bake|oven/.test(lower)) tags.add("baking");
+  if (/simmer|saute|sauté|skillet/.test(lower)) tags.add("skillet");
+  if (/meal prep/.test(lower)) tags.add("meal prep");
+}
+
+function dedupeIngredients(ingredients: RecipeIngredient[]): RecipeIngredient[] {
+  const seen = new Set<string>();
+  return ingredients.filter((ingredient) => {
+    const key = ingredient.item.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function dedupeSteps(steps: RecipeStep[]): RecipeStep[] {
+  const seen = new Set<string>();
+  return steps.filter((step) => {
+    const key = step.text.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function toMarkdown(draft: RecipeDraft): string {
-  const ingredientLines = draft.recipe.ingredients
-    .map((ingredient) => `- ${ingredient.amount} ${ingredient.item} (${ingredient.confidence})`)
-    .join("\n");
-  const stepLines = draft.recipe.steps
-    .map((step, index) => `${index + 1}. ${step.text} (${step.confidence})`)
-    .join("\n");
+  const ingredientLines = draft.recipe.ingredients.length
+    ? draft.recipe.ingredients
+        .map(
+          (ingredient) =>
+            `- ${ingredient.amount} ${ingredient.item} (${ingredient.confidence}; evidence: ${ingredient.evidence})`
+        )
+        .join("\n")
+    : "- No ingredients extracted. Add transcript or frame notes first.";
+  const stepLines = draft.recipe.steps.length
+    ? draft.recipe.steps
+        .map((step, index) => `${index + 1}. ${step.text} (${step.confidence}; evidence: ${step.evidence})`)
+        .join("\n")
+    : "1. No cooking method extracted. Add transcript or frame notes first.";
   const noteLines = draft.recipe.notes.map((note) => `- ${note}`).join("\n");
+  const evidenceLines = draft.recipe.evidenceUsed.length
+    ? draft.recipe.evidenceUsed.map((item) => `- ${item}`).join("\n")
+    : "- No recipe evidence supplied.";
 
   return `# ${draft.recipe.title}
 
 Source: ${draft.source.attribution}
 Original URL: ${draft.source.url}
+Extraction status: ${draft.status}
 
 Servings: ${draft.recipe.servings}
 Prep: ${draft.recipe.prepTime}
@@ -336,11 +502,15 @@ ${ingredientLines}
 
 ## Equipment
 
-${draft.recipe.equipment.map((item) => `- ${item}`).join("\n")}
+${draft.recipe.equipment.map((item) => `- ${item}`).join("\n") || "- Not confirmed from evidence."}
 
 ## Method
 
 ${stepLines}
+
+## Evidence Used
+
+${evidenceLines}
 
 ## Notes
 
@@ -350,6 +520,6 @@ ${noteLines}
 
 ${draft.recipe.safety}
 
-Generated by Taystfuhl. AI-extracted draft; verify before cooking.
+Generated by Taystfuhl. Evidence-backed draft; verify before cooking.
 `;
 }
